@@ -9,7 +9,7 @@ var Wire = function(){
     this.actionProcedures = [];
 };
 
-function makeWire () {
+function makeWire() {
     return new Wire();
 }
 
@@ -66,7 +66,7 @@ function delayed(delay, action) {
 
 function andGate (input_a, input_b, output) {
     var output = output || makeWire();
-    var action = delayed(1, function(){
+    var action = delayed(1, function() {
 	var aVal = input_a.getValue();
 	var bVal = input_b.getValue();
 	if (aVal != undefined && bVal != undefined) {

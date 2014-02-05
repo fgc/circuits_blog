@@ -1,17 +1,85 @@
 <html>
   <head>
     <title>Fun with circuit simulation</title>
+    <link rel="stylesheet" href="css/sunburst.css">
+    <script src="js/highlight.pack.js"></script>
   </head>
   <body>
     <h1>Fun with circuit simulation</h1>
 
     Everybody knows that Structure and Interpretation of Computer Programs (SICP) is a great book. It deservedly appears in many a books-that-give-you-superpowers list. 
-    Among the things I like about SICP are the examples and exercises that take you on a wide tour of interesting math and engineering subjects on top of the main thrust of the text. While I can see how those would be scary to a freshman trying to pass an actual course, they are a joy to play with just for the sake of it, and if the detour is taken at heart it might still be mined for excellent PhD material.
-    One example of the above is the digital circuit simulator in chapter 3. After very few lines of code and not many more of text you end up with a quite interesting digital design toy, perfect for those that like me, would like to understand hardware better but are soldering iron challenged.
-    In this post and any eventual follow ups we will port the simulator to JavaScript as per Atwood's Law, play with it, and see where the whole thing takes us.
-    Radul, FRP, Operad
-    Implementation
+    Among the things I like about SICP are the examples and exercises that take you on a wide tour of interesting subjects on top of the main thrust of the text. While I can see how those would be annoying or even downright scary to a freshman trying to pass an actual course, they are a joy to play with just for the sake of it, and if the detour is taken at heart it might still be mined for excellent PhD material.
+    One example of the above is the digital circuit simulator in chapter 3. After very few lines of code and not many more of text you end up with an interesting digital design toy, perfect for those that would like to understand hardware better but are a hazard anywhere close to a live soldering iron. For example I once had to make a serial cable and burned myself, the table, ruined the iron, got sick from the fumes and the thing never worked quite right.
+    Also, if you are familiar with Verilog/VHDL I guess all this might seem quite silly, so you can go to the next browser tab already. Or maybe stay for the laughs.
+    In this post and any eventual follow-ups we will port the SICP simulator to JavaScript (as per Atwood's Law), play a bit with it, and see where the whole thing takes us.
+    So let's get going.
+    Circuits are made of wires, so a wire object sits at the core of our simulation, behaving close to a subject in the observer pattern. It holds a value and a list of functions that will get invoked every time the value changes. Since the code in SICP sits on top of a greenspunned OOP Scheme implementation, the translation to JS is straightforward:
+<pre><code>var Wire = function(){
+    this.value = undefined;
+    this.actionProcedures = [];
+};
+
+Wire.prototype.getValue = function() {
+    return this.value;
+};
+
+Wire.prototype.setValue = function(newValue) {
+    if (this.value != newValue) {
+        this.value = newValue;
+	this.actionProcedures.forEach(function(proc){
+	    proc();
+	});
+
+    }
+};
+
+Wire.prototype.addAction = function (proc) {
+    this.actionProcedures.push(proc);
+    proc();
+};
+</code></pre>
+The only aspect that might require a bit of clarification might be the fact that we invoke immediately any function that gets added as a "listener" of our wire. Just think about what should happen if you connect anything to our wire when it is already carrying a value.
+
+So what are those functions that get called when the signal on our wires changes? They can only be the stand-ins for the other stuff that we put in circuit diagrams: boxes representing components, from simpe logic gates to memory arrays or whole microprocessors.
+This seems right, after all a logic gate can be thought of as the physical embodyment of a function that uses input wires as parameters and returns its results through the output wire.
+So those actionProcedures are our components, albeit in a slightly roundabout way, since we need to account for an important aspect of our components that needs to be simulated: they might take some significant time to put their result on the output wire after the inputs change. This is the root cause of the timing issues that complicate actual circuit design, so it's worth simulating if possible.
+We will deal with the timing issues by using an abstract time unit instead of introducing real time delays in the simulation. Since the main effect of the timing issues is the way they determine the order in which things happen rather than the exact absolute time we can go a long way with this simplification.
+So what we need is a schedule that allows us to set delayed invocations of the functions associated with our components. This way, when one wire is updated with a new value it will call functions that create entries in the schedule that will be ordered according to a particular delay.
+A function called propagate will run in order through the schedule, dequeing and executing functions until the schedule is empty. In SICP the propagate function is invoked manually, but I like to invoke it automatically whenever there is anything at all to run in the schedule.
+I'm a tad lazy so I'll choose a slightly less involved implementation than the original in SICP that I believe to be equivalent (and probably faster), based on a priority queue. The code is quite simple, so it might be easier to read than the above attempt to explain it.
+
+var schedule = new PriorityQueue(function(a,b) {
+    return b.priority - a.priority;
+});
+schedule.currentTime = 0;
+
+function propagate() {
+    while (!schedule.isEmpty()) {
+	var action = schedule.deq();
+	schedule.currentTime = action.time;
+	action.proc();
+    }
+}
+
+function afterDelay(delay, proc) {
+    if(schedule.isEmpty()) {
+	schedule.enq({time: delay, proc: proc});
+	propagate();
+    }
+    else {
+	schedule.enq({time: schedule.currentTime + delay, proc: proc});
+    }
+}
+
+function delayed(delay, action) {
+    return function () {
+	afterDelay(delay, action);
+    };
+}
+
+
     Try it
     Solve an exercise
   </body>
+<script>hljs.initHighlightingOnLoad();</script>
 </html>
