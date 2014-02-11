@@ -38,48 +38,47 @@ Wire.prototype.addAction = function (proc) {
     proc();
 };
 </code></pre>
-The only aspect that might require a bit of clarification might be the fact that we invoke immediately any function that gets added as a "listener" of our wire. Just think about what should happen if you connect anything to our wire when it is already carrying a value.
+The only aspect that might require a bit of clarification is the fact that we invoke immediately any function that gets added as a "listener" of our wire. Just think about what should happen if you connect anything to our wire when it is already carrying a value.
 
 So what are those functions that get called when the signal on our wires changes? They can only be the stand-ins for the other stuff that we put in circuit diagrams: boxes representing components, from simpe logic gates to memory arrays or whole microprocessors.
 This seems right, after all a logic gate can be thought of as the physical embodyment of a function that uses input wires as parameters and returns its results through the output wire.
 So those actionProcedures are our components, albeit in a slightly roundabout way, since we need to account for an important aspect of our components that needs to be simulated: they might take some significant time to put their result on the output wire after the inputs change. This is the root cause of the timing issues that complicate actual circuit design, so it's worth simulating if possible.
 We will deal with the timing issues by using an abstract time unit instead of introducing real time delays in the simulation. Since the main effect of the timing issues is the way they determine the order in which things happen rather than the exact absolute time we can go a long way with this simplification.
-So what we need is a schedule that allows us to set delayed invocations of the functions associated with our components. This way, when one wire is updated with a new value it will call functions that create entries in the schedule that will be ordered according to a particular delay.
-A function called propagate will run in order through the schedule, dequeing and executing functions until the schedule is empty. In SICP the propagate function is invoked manually, but I like to invoke it automatically whenever there is anything at all to run in the schedule.
-I'm a tad lazy so I'll choose a slightly less involved implementation than the original in SICP that I believe to be equivalent (and probably faster), based on a priority queue. The code is quite simple, so it might be easier to read than the above attempt to explain it.
+I'm a tad lazy so I'll choose a slightly less involved implementation than the original in SICP that I believe to be equivalent (and probably faster), based on a priority queue. The code is quite simple, so it might be easier to read than the any attempt to explain it.
+So what we need is a schedule that allows us to set delayed invocations of the functions associated with our components. 
 
-var schedule = new PriorityQueue(function(a,b) {
+<pre><code>var schedule = new PriorityQueue(function(a,b) {
     return b.priority - a.priority;
 });
 schedule.currentTime = 0;
 
-function propagate() {
+</code></pre>
+
+
+This way, when a wire is updated with a new value it will immediately call functions that queue entries in the schedule that will be ordered according to their particular delay. These entries themselves contain the time of intended execution and the function that does whatever we actually want done
+<pre><code>
+function delayed(delay, action) {
+    return function () {
+        if(schedule.isEmpty()) {
+	    schedule.enq({time: delay, proc: action});
+	    simulate();
+        }
+        else {
+	    schedule.enq({time: schedule.currentTime + delay, proc: action});
+        }};
+}
+</pre></code>
+
+A function called simulate will run in order through the schedule, dequeing and executing functions until the schedule is empty. In SICP this function, called propagate, is invoked manually but I like to invoke it automatically whenever there is anything at all to run in the schedule.
+<pre><code>
+function simulate() {
     while (!schedule.isEmpty()) {
 	var action = schedule.deq();
 	schedule.currentTime = action.time;
 	action.proc();
     }
 }
-
-function afterDelay(delay, proc) {
-    if(schedule.isEmpty()) {
-	schedule.enq({time: delay, proc: proc});
-	propagate();
-    }
-    else {
-	schedule.enq({time: schedule.currentTime + delay, proc: proc});
-    }
-}
-
-function delayed(delay, action) {
-    return function () {
-	afterDelay(delay, action);
-    };
-}
-
-
-    Try it
-    Solve an exercise
+</pre></code>
   </body>
 <script>hljs.initHighlightingOnLoad();</script>
 </html>

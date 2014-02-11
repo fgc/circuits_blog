@@ -8,3 +8,11 @@ b.setValue(false);
 console.log(andGate);
 b.setValue(true);
 console.log(andGate);
+
+console.log("inverter");
+var inp = C.makeWire();
+var out = C.makeWire();
+C.inverter(inp,out);
+console.log(out);
+inp.setValue(true);
+console.log(out);

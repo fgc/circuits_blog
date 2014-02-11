@@ -3,6 +3,7 @@ exports.delayed = delayed;
 exports.dLiftN = dLiftN;
 
 exports.andGate = andGate;
+exports.inverter = inverter;
 
 var Wire = function(){
     this.value = undefined;
@@ -40,7 +41,7 @@ var schedule = new PriorityQueue(function(a,b) {
 });
 schedule.currentTime = 0;
 
-function propagate() {
+function simulate() {
     while (!schedule.isEmpty()) {
 	var action = schedule.deq();
 	schedule.currentTime = action.time;
@@ -48,21 +49,29 @@ function propagate() {
     }
 }
 
-function afterDelay(delay, proc) {
-    if(schedule.isEmpty()) {
-	schedule.enq({time: delay, proc: proc});
-	propagate();
-    }
-    else {
-	schedule.enq({time: schedule.currentTime + delay, proc: proc});
-    }
-}
-
 function delayed(delay, action) {
     return function () {
-	afterDelay(delay, action);
+        if(schedule.isEmpty()) {
+	    schedule.enq({time: delay, proc: action});
+	    simulate();
+        }
+        else {
+	    schedule.enq({time: schedule.currentTime + delay, proc: action});
+        }
     };
 }
+
+function inverter (input, output) {
+    var output = output || makeWire();
+    var action = delayed(1, function(){
+        var val = input.getValue();
+        if(val != undefined) {
+            output.setValue(!val);
+        }
+    });
+    input.addAction(action);
+}
+
 
 function andGate (input_a, input_b, output) {
     var output = output || makeWire();
